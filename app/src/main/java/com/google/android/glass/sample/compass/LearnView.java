@@ -35,12 +35,15 @@ import android.util.AttributeSet;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
 
+import com.google.android.glass.sample.compass.model.Landmarks;
 import com.google.android.glass.sample.compass.model.Place;
 import com.google.android.glass.sample.compass.util.MathUtils;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringTokenizer;
+import java.util.Vector;
 
 /**
  * Draws a stylized compass, with text labels at the cardinal and ordinal directions, and tick
@@ -90,20 +93,27 @@ public class LearnView extends View {
 
     private float targetSpeed; // beginner: 7 intermediate: 9  difficult: 11
     private float currentSpeed;
+    private float measuredSpeed;
+    private float anotherSpeed;
 
     private final Paint mPaint;
     private final Paint mTickPaint;
     private final Path mPath;
     private final TextPaint mPlacePaint;
 
-    private final Bitmap mPlaceBitmap;
-    //private final Bitmap mPlaceBitmap[];
+    //private final Bitmap mPlaceBitmap;
+    private final Bitmap mPlaceBitmap[];
 
     private final Rect mTextBounds;
     private final List<Rect> mAllBounds;
     private final NumberFormat mDistanceFormat;
     private final String[] mDirections;
     private final ValueAnimator mAnimator;
+
+    private float lat;
+    private float lon;
+
+    private Vector<Float> coords;
 
     public LearnView(Context context) {
         this(context, null, 0);
@@ -116,11 +126,49 @@ public class LearnView extends View {
     public LearnView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
 
-        this.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View view) {
-                System.out.println("clicou!");
+        anotherSpeed = 0;
+
+        coords = new Vector<Float>();
+
+//        this.setOnClickListener(new View.OnClickListener() {
+//            public void onClick(View view) {
+//                System.out.println("clicou!");
+//            }
+//        });
+
+        lat = 0;
+        lon = 0;
+
+        Thread mTask = new Thread() {
+            public void run() {
+                while(true) {
+                    String coordString = Landmarks.getHTML("http://www.cin.ufpe.br/~jmxnt/gps3/location.txt");
+                    StringTokenizer st = new StringTokenizer(coordString, ",");
+                    try {
+                        lat = Float.parseFloat(st.nextToken());
+                        lon = Float.parseFloat(st.nextToken());
+
+                        if(lat != 0 & lon != 0) {
+
+                            synchronized (coords) {
+
+                                coords.add(lat);
+                                coords.add(lon);
+                                coords.add((float) System.currentTimeMillis());
+
+                            }
+
+                            updateSpeed();
+                        }
+
+                    } catch (Exception e) {
+                    }
+                }
             }
-        });
+        };
+        mTask.start();
+
+        measuredSpeed = 0;
 
         mPaint = new Paint();
         mPaint.setStyle(Paint.Style.FILL);
@@ -149,10 +197,11 @@ public class LearnView extends View {
         mDistanceFormat.setMinimumFractionDigits(0);
         mDistanceFormat.setMaximumFractionDigits(1);
 
-        mPlaceBitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.robot);
-        //mPlaceBitmap = new Bitmap[2];
-        //mPlaceBitmap[0] = BitmapFactory.decodeResource(context.getResources(), R.drawable.joma_mark);
-        //mPlaceBitmap[1] = BitmapFactory.decodeResource(context.getResources(), R.drawable.lucas_mark);
+        //mPlaceBitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.robot);
+        mPlaceBitmap = new Bitmap[3];
+        mPlaceBitmap[0] = BitmapFactory.decodeResource(context.getResources(), R.drawable.green_robot);
+        mPlaceBitmap[1] = BitmapFactory.decodeResource(context.getResources(), R.drawable.yellow_robot);
+        mPlaceBitmap[2] = BitmapFactory.decodeResource(context.getResources(), R.drawable.red_robot);
 
         // We use NaN to indicate that the compass is being drawn for the first
         // time, so that we can jump directly to the starting orientation
@@ -235,10 +284,14 @@ public class LearnView extends View {
 
         canvas.restore();
 
+        int index = 0;
+
         if(Math.abs(this.currentSpeed - this.targetSpeed) < 0.5) {
             mTickPaint.setColor(Color.GREEN);
+            index = 0;
         } else if(Math.abs(this.currentSpeed - this.targetSpeed) < 1) {
             mTickPaint.setColor(Color.YELLOW);
+            index = 1;
             if(this.currentSpeed > this.targetSpeed) {
                 drawMessage(canvas, "Slow your pace", "");
                 //drawMessage(canvas, "1");
@@ -248,6 +301,7 @@ public class LearnView extends View {
             }
         } else {
             mTickPaint.setColor(Color.RED);
+            index = 2;
             if(this.currentSpeed > this.targetSpeed) {
                 drawMessage(canvas, "You are too fast,", "want to lvl up?");
                 //drawMessage(canvas, "3");
@@ -260,7 +314,7 @@ public class LearnView extends View {
         //mPaint.setColor(NEEDLE_COLOR);
         drawTargetCircle(canvas);
 
-        drawRobot(canvas);
+        drawRobot(canvas, index);
 
         //mPaint.setColor(NEEDLE_COLOR);
         //drawNeedle(canvas, false);
@@ -414,22 +468,57 @@ public class LearnView extends View {
         canvas.drawText(message2, centerX, centerY + 30, mPlacePaint);
     }
 
+    public void updateSpeed() {
 
-    private void drawRobot(Canvas canvas) {
+        while(coords.size() > 6) {
+            coords.remove(0);
+        }
+
+        if(coords.size() == 6) {
+
+            float dist = MathUtils.getDistance(coords.elementAt(0), coords.elementAt(1), coords.elementAt(3), coords.elementAt(4));
+            float deltaTime = coords.elementAt(5) - coords.elementAt(2);
+            deltaTime /= 1000.0f;
+            if(deltaTime != 0) {
+                float speed = dist / deltaTime;
+                this.currentSpeed += 0.3 * (speed - this.currentSpeed);
+            }
+        }
+
+    }
+
+    private void drawRobot(Canvas canvas, int index) {
 
         if (mOrientation.hasLocation()) {
-    		Location userLocation = mOrientation.getLocation();
-            float speed = userLocation.getSpeed()*3.6f;
-        //    float speed = 7f;
-            this.currentSpeed += 0.3 * (speed - this.currentSpeed);
+            Location userLocation = mOrientation.getLocation();
+
+            anotherSpeed =  userLocation.getSpeed() * 3.6f;
+
+            double lat2 = userLocation.getLatitude();
+            double lon2 = userLocation.getLongitude();
+
+            if(lat2 != 0 && lon2 != 0) {
+
+                synchronized (coords) {
+
+                    coords.add(new Float(userLocation.getLatitude()));
+                    coords.add(new Float(userLocation.getLongitude()));
+                    coords.add((float) System.currentTimeMillis());
+
+                }
+
+                updateSpeed();
+            }
     	}
+
+        canvas.drawText(String.format("%.2f",(float)anotherSpeed) + " km/h", getWidth() - 200, getHeight()-100, mPlacePaint);
 
         int level = (int) ((this.currentSpeed - this.targetSpeed) * 40);
 
         float centerX = getWidth() / 2.0f;
         float centerY = getHeight() / 2.0f;
 
-        canvas.drawBitmap(mPlaceBitmap, centerX - mPlaceBitmap.getWidth() / 2 - 160, centerY - mPlaceBitmap.getHeight() / 2 + level, mPaint);
+        canvas.drawBitmap(mPlaceBitmap[index], centerX - mPlaceBitmap[index].getWidth() / 2 - 160, centerY - mPlaceBitmap[index].getHeight() / 2 + level, mPaint);
         //canvas.drawPath(mPath, mPaint);
     }
 
@@ -447,7 +536,7 @@ public class LearnView extends View {
             canvas.drawText("Beginner", getWidth() - 200, 50, mPlacePaint);
         }
 
-        canvas.drawText(this.currentSpeed + " km/h", getWidth() - 200, getHeight()-50, mPlacePaint);
+        canvas.drawText(String.format("%.2f", this.currentSpeed) + " km/h", getWidth() - 200, getHeight()-50, mPlacePaint);
 
         //canvas.drawPath(mPath, mPaint);
     }

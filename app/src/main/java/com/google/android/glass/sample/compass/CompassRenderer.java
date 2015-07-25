@@ -170,6 +170,8 @@ public class CompassRenderer implements SurfaceHolder.Callback {
 
         mRenderThread = new RenderThread();
         mRenderThread.start();
+
+
     }
 
     @Override

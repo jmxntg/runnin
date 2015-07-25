@@ -20,6 +20,7 @@ import java.net.URL;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringTokenizer;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -40,6 +41,7 @@ import android.util.AttributeSet;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
 
+import com.google.android.glass.sample.compass.model.Landmarks;
 import com.google.android.glass.sample.compass.model.Place;
 import com.google.android.glass.sample.compass.util.MathUtils;
 
@@ -102,6 +104,9 @@ public class CompassView extends View {
     private final String[] mDirections;
     private final ValueAnimator mAnimator;
 
+    private float lat;
+    private float lon;
+
     public CompassView(Context context) {
         this(context, null, 0);
     }
@@ -112,6 +117,24 @@ public class CompassView extends View {
 
     public CompassView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
+
+        lat = 0;
+        lon = 0;
+
+        Thread mTask = new Thread() {
+            public void run() {
+                while(true) {
+                    String coords = Landmarks.getHTML("http://www.cin.ufpe.br/~jmxnt/gps3/location.txt");
+                    StringTokenizer st = new StringTokenizer(coords, ",");
+                    try {
+                        lat = Float.parseFloat(st.nextToken());
+                        lon = Float.parseFloat(st.nextToken());
+                    } catch (Exception e) {
+                    }
+                }
+            }
+        };
+        mTask.start();
 
         mPaint = new Paint();
         mPaint.setStyle(Paint.Style.FILL);
@@ -141,9 +164,10 @@ public class CompassView extends View {
         mDistanceFormat.setMaximumFractionDigits(1);
 
         //mPlaceBitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.place_mark);
-        mPlaceBitmap = new Bitmap[2];
-        mPlaceBitmap[0] = BitmapFactory.decodeResource(context.getResources(), R.drawable.joma_mark);
-        mPlaceBitmap[1] = BitmapFactory.decodeResource(context.getResources(), R.drawable.lucas_mark);
+        mPlaceBitmap = new Bitmap[3];
+        mPlaceBitmap[0] = BitmapFactory.decodeResource(context.getResources(), R.drawable.cheetah);
+        mPlaceBitmap[1] = BitmapFactory.decodeResource(context.getResources(), R.drawable.horse);
+        mPlaceBitmap[2] = BitmapFactory.decodeResource(context.getResources(), R.drawable.rabbit);
 
         // We use NaN to indicate that the compass is being drawn for the first
         // time, so that we can jump directly to the starting orientation
@@ -213,9 +237,10 @@ public class CompassView extends View {
         // In order to ensure that places on a boundary close to 0 or 360 get drawn correctly, we
         // draw them three times; once to the left, once at the "true" bearing, and once to the
         // right.
-        for (int i = -1; i <= 1; i++) {
-            drawPlaces(canvas, pixelsPerDegree, i * pixelsPerDegree * 360);
-        }
+        //for (int i = -1; i <= 1; i++) {
+            //drawPlaces(canvas, pixelsPerDegree, i * pixelsPerDegree * 360);
+        drawPlaces(canvas, pixelsPerDegree, 0);
+        //}
 
         drawCompassDirections(canvas, pixelsPerDegree);
 
@@ -223,7 +248,9 @@ public class CompassView extends View {
 
         mPaint.setColor(NEEDLE_COLOR);
         drawNeedle(canvas, false);
-        drawNeedle(canvas, true);
+        //drawNeedle(canvas, true);
+
+        canvas.drawText(lat + "," + lon, getWidth() - 200, getHeight() - 50, mPlacePaint);
     }
 
     /**
@@ -245,13 +272,13 @@ public class CompassView extends View {
                 String direction = mDirections[MathUtils.mod(i, mDirections.length)];
                 mPaint.getTextBounds(direction, 0, direction.length(), mTextBounds);
 
-                canvas.drawText(direction,
-                        i * degreesPerTick * pixelsPerDegree - mTextBounds.width() / 2,
-                        mTextBounds.height() / 2, mPaint);
+                //canvas.drawText(direction, i * degreesPerTick * pixelsPerDegree - mTextBounds.width() / 2, mTextBounds.height() / 2, mPaint);
+                canvas.drawText(direction, i * degreesPerTick * pixelsPerDegree - mTextBounds.width() / 2, -100, mPaint);
+
             } else {
                 // Draw a tick mark for the odd indices.
-                canvas.drawLine(i * degreesPerTick * pixelsPerDegree, -TICK_HEIGHT / 2, i
-                        * degreesPerTick * pixelsPerDegree, TICK_HEIGHT / 2, mTickPaint);
+                //canvas.drawLine(i * degreesPerTick * pixelsPerDegree, -TICK_HEIGHT / 2, i * degreesPerTick * pixelsPerDegree, TICK_HEIGHT / 2, mTickPaint);
+                canvas.drawLine(i * degreesPerTick * pixelsPerDegree, -TICK_HEIGHT / 2 - 100, i * degreesPerTick * pixelsPerDegree, TICK_HEIGHT / 2 - 100, mTickPaint);
             }
         }
     }
@@ -271,11 +298,14 @@ public class CompassView extends View {
     	
     	double latitude1 = -8.032683; 
         double longitude1 = -34.897467;
-    	if (mOrientation.hasLocation()) {
-    		Location userLocation = mOrientation.getLocation();
-            latitude1 = userLocation.getLatitude();
-            longitude1 = userLocation.getLongitude();	
-    	}
+//    	if (mOrientation.hasLocation()) {
+//    		Location userLocation = mOrientation.getLocation();
+//            latitude1 = userLocation.getLatitude();
+//            longitude1 = userLocation.getLongitude();
+//    	} else {
+//            latitude1 = lat;
+//            longitude1 = lon;
+//        }
    	
     	//if (mOrientation.hasLocation() && mNearbyPlaces != null) {
     	if (mNearbyPlaces != null) {
@@ -305,8 +335,13 @@ public class CompassView extends View {
                     //System.out.println("joma");
                     double distanceKm = MathUtils.getDistance(latitude1, longitude1, latitude2,
                             longitude2);
-                    String text = getContext().getResources().getString(
-                        R.string.place_text_format, name, mDistanceFormat.format(distanceKm));
+                    //String text = getContext().getResources().getString(R.string.place_text_format, name, mDistanceFormat.format(distanceKm));
+                    String text = "";
+                    if(distanceKm < 1) {
+                        text = "(" + String.format("%.2f",(float)distanceKm * 1000) + "m)";
+                    } else {
+                        text = "(" + String.format("%.2f",(float)distanceKm) + "km)";
+                    }
 
                     // Measure the text and offset the text bounds to the location where the text
                     // will finally be drawn.
@@ -348,11 +383,8 @@ public class CompassView extends View {
                     if (numberOfTries <= MAX_OVERLAPPING_PLACE_NAMES) {
                         mAllBounds.add(textBounds);
                         canvas.drawBitmap(mPlaceBitmap[Integer.parseInt(place.getName().replace("id",""))], offset + bearing * pixelsPerDegree
-                                - PLACE_PIN_WIDTH / 2, textBounds.top + 2 - 30, mPaint);
-                        canvas.drawText(text,
-                                offset + bearing * pixelsPerDegree + PLACE_PIN_WIDTH / 2
-                                + PLACE_TEXT_MARGIN, textBounds.top - 10 + PLACE_TEXT_HEIGHT,
-                                mPlacePaint);
+                                - PLACE_PIN_WIDTH / 2, textBounds.top + 2 - 100, mPaint);
+                        canvas.drawText(text, bearing * pixelsPerDegree - 20, textBounds.top - 10 + PLACE_TEXT_HEIGHT - 130, mPlacePaint);
                         
                     
                     }

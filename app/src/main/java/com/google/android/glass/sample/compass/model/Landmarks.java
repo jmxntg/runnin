@@ -83,13 +83,15 @@ public class Landmarks {
         //mHandler = new Handler();
         //DownloadFilesTask dft = new DownloadFilesTask(mLandmarks, mCompassView);
 
-        Thread mTask = new Thread() {
-            public void run() {
-                populateTrackList(null);
-            }
-        };
+        populateTrackList(context);
+
+//        Thread mTask = new Thread() {
+//            public void run() {
+//                populateTrackList(null);
+//            }
+//        };
         //mHandler.postDelayed(mTask, 0);
-        mTask.start();
+        //mTask.start();
     }
 
     /**
@@ -253,7 +255,7 @@ public class Landmarks {
 		return p;
 	}
 
-	public String getHTML(String urlToRead) {
+	public static String getHTML(String urlToRead) {
 		URL url;
 		HttpURLConnection conn;
 		BufferedReader rd;
@@ -304,7 +306,7 @@ public class Landmarks {
     	profiles = new Vector<Profile>();
     	
     	int ids[] = {R.raw.track201506190702, R.raw.track201507130651};
-    	String urls[] = {"http://www.cin.ufpe.br/~jmxnt/sportshack/track201506190702.gpx", "http://www.cin.ufpe.br/~jmxnt/sportshack/track201507130651.gpx"};
+    	String urls[] = {"http://www.cin.ufpe.br/~jmxnt/sportshack/track201506190702.gpx", "http://www.cin.ufpe.br/~jmxnt/sportshack/track201507130651.gpx", "http://www.cin.ufpe.br/~jmxnt/sportshack/track201507130651.gpx"};
     	
     	for(int i = 0; i < ids.length; i++) {
     		Profile profile = new Profile();
@@ -312,9 +314,9 @@ public class Landmarks {
     		profile.track = new Vector<Point>();
         	Date startDate = null;
         	
-        	//String content = readLandmarksResource(context, ids[i]);
+        	String content = readLandmarksResource(context, ids[i]);
         	//String content = downloadTrack(urls[i]);
-            String content = getHTML(urls[i]);
+            //String content = getHTML(urls[i]);
 
         	StringTokenizer st = new StringTokenizer(content, " =<>\"");
         	String temp = null;
